@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Abyss Honduras — Monitor Nacional de Zonas Críticas (COPECO / SINAGER)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="min-h-screen p-4 md:p-6">
+  <div class="max-w-7xl mx-auto space-y-6">
+    <!-- Header -->
+    <header class="card-panel rounded-2xl p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-400 font-bold text-lg">⚡</div>
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <h1 class="text-xl md:text-2xl font-bold text-white">Abyss Honduras</h1>
+            <span id="hdr-badge" class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-400/30">RED NACIONAL · COPECO / SINAGER</span>
+          </div>
+          <p id="hdr-sub" class="text-xs text-slate-400 mt-0.5">Monitoreo satelital de 9 zonas críticas en Honduras (Sentinel-1 + Sentinel-2 + Open-Meteo + NISAR)</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <div class="flex rounded-lg border border-slate-700 p-0.5 text-xs">
+          <button data-theme="blue" class="theme-btn px-2.5 py-1 rounded-md font-semibold bg-cyan-600 text-white">Azul</button>
+          <button data-theme="dark" class="theme-btn px-2.5 py-1 rounded-md font-semibold text-slate-400">Oscuro</button>
+          <button data-theme="light" class="theme-btn px-2.5 py-1 rounded-md font-semibold text-slate-400">Claro</button>
+        </div>
+        <div class="flex rounded-lg border border-slate-700 p-0.5 text-xs">
+          <button data-lang="es" class="lang-btn px-2.5 py-1 rounded-md font-semibold bg-cyan-600 text-white">ES</button>
+          <button data-lang="en" class="lang-btn px-2.5 py-1 rounded-md font-semibold text-slate-400">EN</button>
+        </div>
+        <button id="btn-pdf" class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition">Generar Informe Nacional</button>
+      </div>
+    </header>
+
+    <!-- KPI Row -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="card-panel rounded-xl p-4">
+        <p id="kpi1-lbl" class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Cobertura Nacional</p>
+        <p id="kpi1-val" class="text-xl font-bold text-white mt-1">9 Zonas Críticas</p>
+        <p id="kpi1-sub" class="text-xs text-cyan-400 mt-1">Sentinel-1 (13 nov) · Sentinel-2 (14 nov)</p>
+      </div>
+      <div class="card-panel rounded-xl p-4">
+        <p id="kpi2-lbl" class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Zona Seleccionada</p>
+        <p id="kpi2-val" class="text-xl font-bold text-white mt-1">Chamelecón (SPS)</p>
+        <p id="kpi2-sub" class="text-xs text-slate-400 mt-1">Cortés · 29 pts de control</p>
+      </div>
+      <div class="card-panel rounded-xl p-4">
+        <p id="kpi3-lbl" class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Lectura Actual (14 nov 2026)</p>
+        <p id="kpi3-val" class="text-xl font-bold text-rose-400 mt-1">22.8 mm · Riesgo 69%</p>
+        <p id="kpi3-sub" class="text-xs text-slate-400 mt-1">VH: -14.39 dB · NDWI: -0.209</p>
+      </div>
+      <div class="card-panel rounded-xl p-4">
+        <p id="kpi4-lbl" class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Decisión (+6 días · 20 nov 2026)</p>
+        <p id="kpi4-val" class="text-xl font-bold text-rose-400 mt-1">CRÍTICO</p>
+        <p id="kpi4-sub" class="text-xs text-slate-400 mt-1">Pronóstico en vivo Open-Meteo</p>
+      </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Zones List -->
+      <div class="lg:col-span-4 card-panel rounded-2xl p-4 flex flex-col">
+        <div class="flex items-center justify-between mb-3">
+          <h2 id="sec1-title" class="text-sm font-bold text-white">1. Zonas Críticas de Honduras</h2>
+          <button id="btn-country" class="text-xs text-cyan-400 hover:underline font-medium">Ver país completo</button>
+        </div>
+        <div id="sector-list" class="space-y-2.5 overflow-y-auto max-h-[540px] pr-1"></div>
+      </div>
+
+      <!-- Map & Layer Controls & Timeline Evolution -->
+      <div class="lg:col-span-8 card-panel rounded-2xl p-4 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="map-title" class="text-sm font-bold text-white">Mapa Nacional · Solo Honduras (Cuencas, Bordos y Laderas)</h2>
+          <div class="flex items-center gap-1.5 flex-wrap text-xs">
+            <button data-layer="def" class="layer-btn px-2.5 py-1 rounded-lg bg-cyan-600 text-white font-semibold">Deformación (mm)</button>
+            <button data-layer="water" class="layer-btn px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 font-semibold">Agua Radar (dB)</button>
+            <button data-layer="ndwi" class="layer-btn px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 font-semibold">Cámara Óptica (NDWI)</button>
+            <label class="flex items-center gap-1.5 ml-1 px-2 py-1 rounded-lg bg-slate-900/80 border border-slate-700 cursor-pointer text-slate-300">
+              <input id="chk-sat-labels" type="checkbox" checked class="accent-cyan-400" />
+              <span id="lbl-sat-data">Datos en mapa</span>
+            </label>
+          </div>
+        </div>
+        <div id="map"></div>
+
+        <!-- Timeline Slider ("Ver Evolucion") -->
+        <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <button id="btn-play-evo" class="px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition">▶ Ver Evolución</button>
+              <span id="evo-date-badge" class="text-xs font-bold text-cyan-300 px-2.5 py-0.5 rounded-md bg-cyan-500/15 border border-cyan-400/30">14 nov 2026</span>
+            </div>
+            <span id="nisar-passes-lbl" class="text-[11px] text-slate-400">Pases NISAR cada 12 días (Sep – Nov 2026)</span>
+          </div>
+          <input id="evo-slider" type="range" min="0" max="5" value="5" class="w-full cursor-pointer accent-cyan-400" />
+          <div class="flex justify-between text-[11px] text-slate-400 font-medium px-0.5">
+            <span>15 sep</span><span>27 sep</span><span>9 oct</span><span>21 oct</span><span>2 nov</span><span>14 nov</span>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 pt-0.5">
+          <div class="flex items-center gap-4">
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> <span id="leg-safe">Seguro (&lt;35%)</span></span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> <span id="leg-warn">Precaución (35–64%)</span></span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> <span id="leg-crit">Crítico (≥65%)</span></span>
+          </div>
+          <span id="weather-badge" class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">● En vivo · Open-Meteo (15 nov 2026)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Forecast & Recent Zone Evolution Chart -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div class="lg:col-span-6 card-panel rounded-2xl p-5">
+        <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
+          <h2 id="sec2-title" class="text-sm font-bold text-white">2. Pronóstico Cada 6 Días (NISAR + Open-Meteo + SMAP)</h2>
+          <select id="rain-sim" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200">
+            <option value="live">Automático (En vivo · Open-Meteo)</option>
+            <option value="light">Simular: Lluvia ligera (+25 mm)</option>
+            <option value="mod">Simular: Tormenta moderada (+75 mm)</option>
+            <option value="ext">Simular: Temporal / Frente frío (+160 mm)</option>
+          </select>
+        </div>
+        <div id="forecast-cards" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3"></div>
+      </div>
+
+      <div class="lg:col-span-6 card-panel rounded-2xl p-5">
+        <h2 id="sec3-title" class="text-sm font-bold text-white mb-2">3. Evolución y Validación del Modelo en la Zona</h2>
+        <div class="h-52"><canvas id="zoneChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- 2-Year Real GEE Historical Evolution -->
+    <div class="card-panel rounded-2xl p-5">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <div>
+          <h2 id="sec4-title" class="text-sm font-bold text-white">4. Evolución Histórica Real de 2 Años (Nov 2024 – Nov 2026)</h2>
+          <p id="sec4-sub" class="text-xs text-slate-400">Promedios mensuales reales extraídos de Google Earth Engine (25 meses)</p>
+        </div>
+        <div class="flex gap-2 text-xs">
+          <button data-hmode="vh" class="h2y-btn px-3 py-1 rounded-lg bg-cyan-600 text-white font-semibold">Radar Sentinel-1 VH (dB)</button>
+          <button data-hmode="ndwi" class="h2y-btn px-3 py-1 rounded-lg bg-slate-800 text-slate-300 font-semibold">Óptico Sentinel-2 (NDWI)</button>
+        </div>
+      </div>
+      <div class="h-60"><canvas id="history2yChart"></canvas></div>
+    </div>
+  </div>
+
+  <script src="js/data_zones.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
